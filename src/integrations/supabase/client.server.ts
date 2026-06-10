@@ -19,12 +19,19 @@ function createSupabaseAdminClient() {
     throw new Error(message);
   }
 
+  // Use ws package for WebSocket on Node.js < 22
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ws = typeof WebSocket === 'undefined' ? require('ws') : WebSocket;
+
   return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       storage: undefined,
       persistSession: false,
       autoRefreshToken: false,
-    }
+    },
+    realtime: {
+      transport: ws,
+    },
   });
 }
 
