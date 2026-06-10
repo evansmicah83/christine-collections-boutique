@@ -1,0 +1,247 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+ * Christine Collections — luxury African boutique design system
+ * Deep plum + rose gold + blush, editorial serif + warm sans.
+ * ============================================================ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  --font-display: "Playfair Display", "Cormorant Garamond", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-mono: "Courier Prime", "Courier New", monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-plum: var(--plum);
+  --color-plum-deep: var(--plum-deep);
+  --color-rose: var(--rose);
+  --color-rose-soft: var(--rose-soft);
+  --color-blush: var(--blush);
+  --color-cream: var(--cream);
+  --color-success: var(--success);
+  --color-mpesa: var(--mpesa);
+
+  --shadow-elegant: 0 30px 60px -30px color-mix(in oklab, var(--plum-deep) 70%, transparent);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--rose) 40%, transparent), 0 12px 40px -10px color-mix(in oklab, var(--rose) 35%, transparent);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Brand tokens — dark luxury */
+  --plum: oklch(0.24 0.05 340);          /* #2D1B2E approx */
+  --plum-deep: oklch(0.18 0.04 340);     /* #1A0F1B */
+  --rose: oklch(0.68 0.10 40);           /* #C0866A rose gold */
+  --rose-soft: oklch(0.78 0.08 40);
+  --blush: oklch(0.88 0.05 30);          /* #F2D4C8 */
+  --cream: oklch(0.95 0.015 60);         /* #F5EEE8 off-white */
+  --success: oklch(0.65 0.13 155);       /* #4CAF7D */
+  --mpesa: oklch(0.62 0.16 145);
+
+  /* Semantic — dark by default */
+  --background: var(--plum-deep);
+  --foreground: var(--cream);
+  --card: oklch(0.22 0.04 340);
+  --card-foreground: var(--cream);
+  --popover: oklch(0.22 0.04 340);
+  --popover-foreground: var(--cream);
+  --primary: var(--rose);
+  --primary-foreground: oklch(0.15 0.02 340);
+  --secondary: oklch(0.30 0.04 340);
+  --secondary-foreground: var(--cream);
+  --muted: oklch(0.26 0.03 340);
+  --muted-foreground: oklch(0.72 0.02 40);
+  --accent: var(--rose-soft);
+  --accent-foreground: oklch(0.15 0.02 340);
+  --destructive: oklch(0.60 0.20 25);
+  --destructive-foreground: var(--cream);
+  --border: oklch(0.32 0.03 340);
+  --input: oklch(0.30 0.03 340);
+  --ring: var(--rose);
+}
+
+.dark { /* same as root — already dark */ }
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(ellipse at top, color-mix(in oklab, var(--plum) 70%, transparent), transparent 60%);
+  }
+  h1, h2, h3, h4, h5, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+  .font-mono, code, .price, .order-number { font-family: var(--font-mono); letter-spacing: 0.02em; }
+}
+
+/* ============ Custom utilities ============ */
+@utility btn-rose {
+  background: linear-gradient(135deg, var(--rose), color-mix(in oklab, var(--rose) 75%, var(--blush)));
+  color: oklch(0.15 0.02 340);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 999px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  &:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+}
+
+@utility btn-ghost {
+  border: 1px solid color-mix(in oklab, var(--rose) 50%, transparent);
+  color: var(--cream);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 999px;
+  transition: all 0.25s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  &:hover { background: color-mix(in oklab, var(--rose) 14%, transparent); border-color: var(--rose); }
+}
+
+@utility btn-mpesa {
+  background: var(--mpesa);
+  color: white;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1rem 1.6rem;
+  border-radius: 12px;
+  transition: all 0.25s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  &:hover { filter: brightness(1.08); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+@utility card-luxe {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  &:hover {
+    border-color: color-mix(in oklab, var(--rose) 60%, transparent);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--rose) 18%, transparent);
+  border: 1px solid color-mix(in oklab, var(--rose) 40%, transparent);
+  color: var(--rose-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@utility eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--rose-soft);
+  font-weight: 500;
+}
+
+@utility input-luxe {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--cream);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  font-family: var(--font-body);
+  transition: border-color 0.2s;
+  &:focus { outline: none; border-color: var(--rose); }
+  &::placeholder { color: color-mix(in oklab, var(--cream) 45%, transparent); }
+}
+
+@utility shimmer {
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--card) 100%, transparent) 0%,
+    color-mix(in oklab, var(--rose) 10%, var(--card)) 50%,
+    color-mix(in oklab, var(--card) 100%, transparent) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@utility linen-bg {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, color-mix(in oklab, var(--cream) 3%, transparent) 0 1px, transparent 1px 4px),
+      repeating-linear-gradient(-45deg, color-mix(in oklab, var(--cream) 2%, transparent) 0 1px, transparent 1px 4px);
+    pointer-events: none;
+    opacity: 0.5;
+  }
+}
+
+
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes truck {
+  0% { transform: translateX(-20%); }
+  100% { transform: translateX(120%); }
+}
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-truck { animation: truck 14s linear infinite; }
