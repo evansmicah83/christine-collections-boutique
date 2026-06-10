@@ -21,9 +21,14 @@ dist-ssr
 .env.*
 !.env.example
 
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
+# Build outputs — never commit
+.netlify/
+dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/**
+.nitro/
 
 # Editor directories and files
 .vscode/*
