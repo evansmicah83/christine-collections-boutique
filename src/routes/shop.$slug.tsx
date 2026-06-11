@@ -1,8 +1,8 @@
 import { createFileRoute, notFound, useNavigate, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Minus, Plus, ShoppingBag, ZoomIn, MapPin } from "lucide-react";
+import { Minus, Plus, ShoppingBag, ZoomIn, MapPin, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Shell } from "@/components/Shell";
 import { ProductCard } from "@/components/ProductCard";
@@ -87,27 +87,9 @@ function Detail() {
 
         <div className="grid md:grid-cols-2 gap-10">
           {/* Images */}
-          <div className="space-y-3">
-            <div className="aspect-[3/4] bg-[color:var(--card)] rounded-xl overflow-hidden relative group cursor-zoom-in" onClick={() => setZoomed(true)}>
-              <motion.img key={activeImg} src={images[activeImg]} alt={p.name}
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-                className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                <div className="bg-black/40 rounded-full p-3"><ZoomIn className="text-white" size={22} /></div>
-              </div>
-              {p.compare_price && <span className="absolute top-3 left-3 chip">Sale</span>}
-            </div>
-            {images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {images.map((img, i) => (
-                  <button key={i} onClick={() => setActiveImg(i)}
-                    className={`shrink-0 w-20 h-24 rounded-lg overflow-hidden border-2 transition ${i === activeImg ? "border-[color:var(--rose)]" : "border-transparent"}`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ImageGallery images={images} name={p.name} onSale={!!p.compare_price}
+            activeImg={activeImg} setActiveImg={setActiveImg}
+            onZoom={() => setZoomed(true)} />
 
           {/* Info */}
           <div>
@@ -236,11 +218,149 @@ function Detail() {
       <AnimatePresence>
         {zoomed && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setZoomed(false)} className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out">
-            <img src={images[activeImg]} alt={p.name} className="max-h-[90vh] max-w-full object-contain rounded-lg" />
+            onClick={() => setZoomed(false)}
+            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out">
+            <button onClick={() => setZoomed(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <X size={20} className="text-white" />
+            </button>
+            <div className="flex items-center gap-4 w-full max-w-4xl">
+              <button onClick={(e) => { e.stopPropagation(); setActiveImg(i => (i - 1 + images.length) % images.length); }}
+                className="shrink-0 p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+                <ChevronLeft size={24} className="text-white" />
+              </button>
+              <motion.img key={activeImg} src={images[activeImg]} alt={p.name}
+                initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}
+                className="flex-1 max-h-[85vh] object-contain rounded-lg" />
+              <button onClick={(e) => { e.stopPropagation(); setActiveImg(i => (i + 1) % images.length); }}
+                className="shrink-0 p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+                <ChevronRight size={24} className="text-white" />
+              </button>
+            </div>
+            <p className="absolute bottom-4 text-white/50 text-xs">{activeImg + 1} / {images.length}</p>
           </motion.div>
         )}
       </AnimatePresence>
     </Shell>
+  );
+}
+
+// ─── ImageGallery ─────────────────────────────────────────────────────────────
+function ImageGallery({
+  images, name, onSale, activeImg, setActiveImg, onZoom,
+}: {
+  images: string[];
+  name: string;
+  onSale: boolean;
+  activeImg: number;
+  setActiveImg: (i: number) => void;
+  onZoom: () => void;
+}) {
+  const touchStartX = useRef<number | null>(null);
+  const prev = () => setActiveImg((activeImg - 1 + images.length) % images.length);
+  const next = () => setActiveImg((activeImg + 1) % images.length);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    touchStartX.current = null;
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Main image */}
+      <div
+        className="aspect-[3/4] bg-[color:var(--card)] rounded-xl overflow-hidden relative group cursor-zoom-in select-none"
+        onClick={onZoom}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <AnimatePresence mode="wait">
+          <motion.img
+            key={activeImg}
+            src={images[activeImg]}
+            alt={`${name} — view ${activeImg + 1}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28 }}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+            draggable={false}
+          />
+        </AnimatePresence>
+
+        {/* Zoom hint — desktop only */}
+        <div className="hidden md:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
+          <div className="bg-black/40 backdrop-blur-sm rounded-full p-3">
+            <ZoomIn className="text-white" size={22} />
+          </div>
+        </div>
+
+        {/* Sale badge */}
+        {onSale && <span className="absolute top-3 left-3 chip pointer-events-none">Sale</span>}
+
+        {/* Mobile prev / next arrows */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); prev(); }}
+              className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center"
+              aria-label="Previous image"
+            >
+              <ChevronLeft size={18} className="text-white" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); next(); }}
+              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center"
+              aria-label="Next image"
+            >
+              <ChevronRight size={18} className="text-white" />
+            </button>
+          </>
+        )}
+
+        {/* Mobile dot indicators */}
+        {images.length > 1 && (
+          <div className="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => { e.stopPropagation(); setActiveImg(i); }}
+                className={`rounded-full transition-all duration-200 ${
+                  i === activeImg
+                    ? "w-4 h-1.5 bg-[color:var(--rose)]"
+                    : "w-1.5 h-1.5 bg-white/50"
+                }`}
+                aria-label={`View image ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop thumbnails */}
+      {images.length > 1 && (
+        <div className="hidden md:flex gap-2 overflow-x-auto pb-1">
+          {images.map((img, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveImg(i)}
+              className={`shrink-0 w-20 h-24 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                i === activeImg
+                  ? "border-[color:var(--rose)] opacity-100 scale-[1.03]"
+                  : "border-transparent opacity-60 hover:opacity-90 hover:border-[color:var(--rose)]/40"
+              }`}
+              aria-label={`View image ${i + 1}`}
+            >
+              <img src={img} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
