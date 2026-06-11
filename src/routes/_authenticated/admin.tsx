@@ -1,16 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import {
   Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Upload,
   Image as ImageIcon, Search, LayoutDashboard, ShoppingBag,
-  Package, Tag, Truck, Menu, LogOut,
+  Package, Tag, Truck, Menu, LogOut, ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Shell } from "@/components/Shell";
+import { Toaster } from "sonner";
 import { confirm } from "@/components/ConfirmModal";
+import { ConfirmModalProvider } from "@/components/ConfirmModal";
+import { Logo } from "@/components/Logo";
 import {
   adminStats, adminListOrders, adminUpdateOrderStatus,
   adminUpsertProduct, adminDeleteProduct,
@@ -21,7 +23,12 @@ import { listCategories, listDeliveryZones, listProducts } from "@/lib/catalog.f
 import { formatKsh } from "@/lib/brand";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/admin")({ component: Admin });
+export const Route = createFileRoute("/_authenticated/admin")({
+  beforeLoad: ({ context }) => {
+    if (!context.isAdmin) throw redirect({ to: "/admin-login" });
+  },
+  component: Admin,
+});
 
 type Tab = "stats" | "orders" | "products" | "categories" | "zones";
 
@@ -44,26 +51,8 @@ const statusColor: Record<string, string> = {
 
 function Admin() {
   const [tab, setTab] = useState<Tab>("stats");
-  const [allowed, setAllowed] = useState<boolean | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { setAllowed(false); return; }
-      const { data: r } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
-      setAllowed(!!r);
-    });
-  }, []);
-
-  if (allowed === null) return <Shell><div className="shimmer h-screen m-4 rounded-2xl" /></Shell>;
-  if (!allowed) return (
-    <Shell>
-      <div className="p-12 text-center max-w-md mx-auto">
-        <h1 className="font-display text-3xl mb-3">Admin only</h1>
-        <p className="text-sm text-[color:var(--muted-foreground)]">Your account doesn't have admin access.</p>
-      </div>
-    </Shell>
-  );
+  const nav = useNavigate();
 
   const handleTab = (t: Tab) => { setTab(t); setSidebarOpen(false); };
 
@@ -76,12 +65,12 @@ function Admin() {
     });
     if (!ok) return;
     await supabase.auth.signOut();
-    window.location.href = "/";
+    nav({ to: "/admin-login" });
   };
 
   return (
-    <Shell>
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)] flex flex-col">
+      <div className="flex flex-1 overflow-hidden h-screen">
         {/* Mobile overlay */}
         <AnimatePresence>
           {sidebarOpen && (
@@ -92,39 +81,50 @@ function Admin() {
         </AnimatePresence>
 
         {/* Sidebar */}
-        <aside className={`fixed top-0 left-0 h-full w-64 z-50 bg-[color:var(--plum-deep)] border-r border-[color:var(--border)] flex flex-col transition-transform duration-300 md:static md:translate-x-0 md:h-full md:shrink-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside className={`fixed top-0 left-0 h-full w-64 z-50 bg-[color:var(--plum-deep)] border-r border-[color:var(--border)] flex flex-col transition-transform duration-300 md:static md:translate-x-0 md:shrink-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}>
           <div className="p-5 border-b border-[color:var(--border)] shrink-0">
-            <p className="eyebrow">Admin Panel</p>
-            <p className="font-display text-lg mt-0.5">Christine Collections</p>
+            <Logo />
+            <p className="eyebrow mt-3 text-[10px]">Admin Panel</p>
           </div>
-          <nav className="flex-1 p-3 space-y-1">
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
             {NAV.map(({ key, label, icon: Icon }) => (
               <button key={key} onClick={() => handleTab(key as Tab)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition text-left ${tab === key ? "bg-[color:var(--rose)]/15 text-[color:var(--rose)] border border-[color:var(--rose)]/30" : "hover:bg-[color:var(--muted)] text-[color:var(--muted-foreground)] hover:text-[color:var(--cream)]"}`}>
-                <Icon size={17} />
-                {label}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition text-left ${
+                  tab === key
+                    ? "bg-[color:var(--rose)]/15 text-[color:var(--rose)] border border-[color:var(--rose)]/30"
+                    : "hover:bg-[color:var(--muted)] text-[color:var(--muted-foreground)] hover:text-[color:var(--cream)]"
+                }`}>
+                <Icon size={17} />{label}
               </button>
             ))}
           </nav>
-          <div className="p-3 border-t border-[color:var(--border)] shrink-0">
+          <div className="p-3 border-t border-[color:var(--border)] shrink-0 space-y-1">
+            <a href="/" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs text-[color:var(--muted-foreground)] hover:bg-[color:var(--muted)] hover:text-[color:var(--cream)] transition">
+              ← Back to storefront
+            </a>
             <button onClick={signOut}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-[color:var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-400 transition">
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-[color:var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-400 transition">
               <LogOut size={17} /> Sign Out
             </button>
           </div>
         </aside>
 
-        {/* Main content — scrolls independently */}
+        {/* Main */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Top bar */}
           <div className="shrink-0 bg-[color:var(--background)]/90 backdrop-blur-md border-b border-[color:var(--border)] px-4 py-3 flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-[color:var(--muted)] transition">
               <Menu size={20} />
             </button>
-            <div>
-              <p className="eyebrow text-[10px]">Admin</p>
+            <div className="flex-1">
+              <p className="eyebrow text-[10px]">Christine Collections</p>
               <p className="font-display text-lg leading-none">{NAV.find(n => n.key === tab)?.label}</p>
             </div>
+            <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-[color:var(--rose)] border border-[color:var(--rose)]/30 bg-[color:var(--rose)]/10 px-2.5 py-1 rounded-full">
+              <ShieldAlert size={11} /> Admin
+            </span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -136,7 +136,9 @@ function Admin() {
           </div>
         </div>
       </div>
-    </Shell>
+      <ConfirmModalProvider />
+      <Toaster theme="dark" position="top-right" toastOptions={{ style: { background: "var(--card)", color: "var(--cream)", border: "1px solid var(--border)" } }} />
+    </div>
   );
 }
 

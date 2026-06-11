@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/admin-login")({ component: AdminLogin });
 
 function AdminLogin() {
   const nav = useNavigate();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -39,6 +40,7 @@ function AdminLogin() {
       }
 
       toast.success("Welcome back, Admin");
+      await router.invalidate();
       nav({ to: "/admin" });
     } catch (e: any) {
       toast.error(e.message);
