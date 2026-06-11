@@ -2,7 +2,7 @@ import { createFileRoute, notFound, useNavigate, Link } from "@tanstack/react-ro
 import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Minus, Plus, ShoppingBag, ZoomIn, MapPin, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Minus, Plus, ShoppingBag, ZoomIn, MapPin, ChevronLeft, ChevronRight, X, Waves, Ban, Wind, Flame, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Shell } from "@/components/Shell";
 import { ProductCard } from "@/components/ProductCard";
@@ -172,22 +172,8 @@ function Detail() {
                         </div>
                       : <p className="text-[color:var(--muted-foreground)] text-sm leading-relaxed italic">Premium quality, ethically crafted in Kenya.</p>
                   )}
-                  {tab === "Size Guide" && (
-                    <div className="text-sm text-[color:var(--muted-foreground)] space-y-1">
-                      <p className="font-medium text-[color:var(--cream)] mb-2">Standard Kenyan sizing</p>
-                      {[["XS", "32-34"], ["S", "34-36"], ["M", "38-40"], ["L", "42-44"], ["XL", "46-48"]].map(([sz, cm]) => (
-                        <div key={sz} className="flex justify-between border-b border-[color:var(--border)] py-1"><span>{sz}</span><span>{cm} cm chest</span></div>
-                      ))}
-                      <p className="mt-3 text-xs">All pieces are hand-finished — slight variation is part of the craft.</p>
-                    </div>
-                  )}
-                  {tab === "Care" && (
-                    <ul className="text-sm text-[color:var(--muted-foreground)] space-y-2">
-                      {["Hand wash in cold water", "Do not tumble dry", "Iron on low heat", "Dry clean recommended for silk", "Store in a cool, dry place"].map((c) => (
-                        <li key={c} className="flex gap-2"><span className="text-[color:var(--rose)]">·</span>{c}</li>
-                      ))}
-                    </ul>
-                  )}
+                  {tab === "Size Guide" && <SizeGuide />}
+                  {tab === "Care" && <CareInstructions />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -362,5 +348,109 @@ function ImageGallery({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── SizeGuide ────────────────────────────────────────────────────────────────
+const SIZE_DATA = [
+  { label: "Bust (cm)",   xs: "80–83", s: "84–87", m: "88–92", l: "96–100", xl: "104–108" },
+  { label: "Waist (cm)",  xs: "62–65", s: "66–69", m: "70–74", l: "78–82",  xl: "86–90"  },
+  { label: "Hips (cm)",   xs: "88–91", s: "92–95", m: "96–100",l: "104–108",xl: "112–116"},
+  { label: "Length (cm)", xs: "100",   s: "102",   m: "104",   l: "106",    xl: "108"    },
+] as const;
+
+function SizeGuide() {
+  return (
+    <div className="space-y-4">
+      <div className="overflow-x-auto rounded-xl border border-[color:var(--border)]">
+        <table className="w-full text-sm min-w-[340px]">
+          <thead>
+            <tr className="border-b border-[color:var(--border)] bg-[color:var(--muted)]/40">
+              <th className="text-left px-4 py-3 font-medium text-[color:var(--cream)] text-xs tracking-wide w-32">
+                Measurement
+              </th>
+              {(["XS", "S", "M", "L", "XL"] as const).map((sz) => (
+                <th key={sz} className="px-3 py-3 font-semibold text-[color:var(--rose)] text-xs tracking-widest text-center">
+                  {sz}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {SIZE_DATA.map((row, i) => (
+              <tr
+                key={row.label}
+                className={`border-b border-[color:var(--border)] last:border-0 ${
+                  i % 2 === 0 ? "bg-transparent" : "bg-[color:var(--muted)]/20"
+                }`}
+              >
+                <td className="px-4 py-3 text-[color:var(--cream)] text-xs font-medium whitespace-nowrap">
+                  {row.label}
+                </td>
+                {([row.xs, row.s, row.m, row.l, row.xl] as const).map((val, j) => (
+                  <td key={j} className="px-3 py-3 text-center text-[color:var(--muted-foreground)] text-xs tabular-nums">
+                    {val}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[color:var(--muted-foreground)] leading-relaxed">
+        If between sizes, size up. All measurements in centimetres. 
+        Our pieces are hand-finished — a small variation of ±1 cm is part of the craft.
+      </p>
+    </div>
+  );
+}
+
+// ─── CareInstructions ─────────────────────────────────────────────────────────
+const CARE_ITEMS = [
+  {
+    icon: Waves,
+    label: "Machine wash cold",
+    note: "30°C max, gentle cycle",
+  },
+  {
+    icon: Ban,
+    label: "Do not bleach",
+    note: "Avoid all bleaching agents",
+  },
+  {
+    icon: Wind,
+    label: "Hang to dry",
+    note: "Reshape while damp, dry in shade",
+  },
+  {
+    icon: Flame,
+    label: "Cool iron only",
+    note: "Max 110°C, iron inside out",
+  },
+  {
+    icon: Sparkles,
+    label: "Dry clean safe",
+    note: "Recommended for silk & embellished pieces",
+  },
+] as const;
+
+function CareInstructions() {
+  return (
+    <ul className="space-y-1">
+      {CARE_ITEMS.map(({ icon: Icon, label, note }) => (
+        <li
+          key={label}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[color:var(--muted)]/40 transition"
+        >
+          <div className="w-8 h-8 rounded-lg bg-[color:var(--rose)]/10 border border-[color:var(--rose)]/20 flex items-center justify-center shrink-0">
+            <Icon size={15} className="text-[color:var(--rose)]" />
+          </div>
+          <div>
+            <p className="text-sm text-[color:var(--cream)] font-medium leading-tight">{label}</p>
+            <p className="text-xs text-[color:var(--muted-foreground)] mt-0.5">{note}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
