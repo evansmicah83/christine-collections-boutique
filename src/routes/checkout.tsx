@@ -1,13 +1,16 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { MapPin, Clock, ShoppingBag, ChevronRight, Check, Phone } from "lucide-react";
 import { Shell } from "@/components/Shell";
 import { useCart } from "@/lib/cart-store";
 import { formatKsh, isValidKenyaPhone, sanitizePhone } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 import { listDeliveryZones } from "@/lib/catalog.functions";
 import { createOrder } from "@/lib/orders.functions";
 import { mpesaStkPush, mpesaStatus } from "@/lib/mpesa.functions";
@@ -19,9 +22,7 @@ const deliverySchema = z
   .object({
     fullName: z.string().min(2, "Full name required"),
     email: z.string().email("Valid email required"),
-    phone: z
-      .string()
-      .refine((v) => isValidKenyaPhone(v), "Enter a valid Kenyan phone (07XX or +2547XX)"),
+    phone: z.string().refine(isValidKenyaPhone, "Enter a valid Kenyan phone (07XX or +2547XX)"),
     isPickup: z.boolean(),
     branch: z.enum(["nairobi", "makueni"]),
     street: z.string().optional(),
@@ -39,6 +40,43 @@ const deliverySchema = z
 
 type DeliveryForm = z.infer<typeof deliverySchema>;
 
+// ── Step indicator ────────────────────────────────────────────────────────────
+const STEPS = ["Delivery", "Review", "Payment"] as const;
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-center mb-8">
+      {STEPS.map((label, idx) => {
+        const n = idx + 1;
+        const done = n < current;
+        const active = n === current;
+        return (
+          <div key={label} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
+                done    ? "bg-[color:var(--rose)] border-[color:var(--rose)] text-[color:var(--plum-deep)]"
+                : active ? "bg-transparent border-[color:var(--rose)] text-[color:var(--rose)]"
+                         : "bg-transparent border-[color:var(--border)] text-[color:var(--muted-foreground)]"
+              }`}>
+                {done ? <Check size={14} strokeWidth={3} /> : n}
+              </div>
+              <span className={`text-[10px] tracking-wide uppercase font-medium hidden sm:block ${
+                active ? "text-[color:var(--rose)]" : "text-[color:var(--muted-foreground)]"
+              }`}>{label}</span>
+            </div>
+            {idx < STEPS.length - 1 && (
+              <div className={`flex-1 h-px mx-2 mb-5 transition-all duration-300 ${
+                done ? "bg-[color:var(--rose)]" : "bg-[color:var(--border)]"
+              }`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Checkout ──────────────────────────────────────────────────────────────────
 function Checkout() {
   const nav = useNavigate();
   const { items, subtotal, clear } = useCart();
@@ -51,38 +89,33 @@ function Checkout() {
   const [checkoutReqId, setCheckoutReqId] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [payFailed, setPayFailed] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState("");
   const [serverTotal, setServerTotal] = useState<number | null>(null);
 
-  // Keep interval ref so we can clear it on unmount
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } =
     useForm<DeliveryForm>({
       resolver: zodResolver(deliverySchema),
-      defaultValues: {
-        isPickup: false,
-        branch: "nairobi",
-        fullName: "",
-        email: "",
-        phone: "",
-        street: "",
-        zoneId: "",
-        instructions: "",
-      },
+      defaultValues: { isPickup: false, branch: "nairobi", fullName: "", email: "", phone: "", street: "", zoneId: "", instructions: "" },
     });
 
   const isPickup = watch("isPickup");
+  const branch = watch("branch");
   const zoneId = watch("zoneId");
   const zone = zones?.find((z: any) => z.id === zoneId);
-  const deliveryFee = isPickup ? 0 : zone ? Number(zone.fee) : null; // null = not yet selected
+  const deliveryFee = isPickup ? 0 : zone ? Number(zone.fee) : null;
 
   if (items.length === 0 && !orderId) {
     return (
       <Shell>
-        <div className="max-w-3xl mx-auto px-5 py-24 text-center">
-          <h1 className="font-display text-3xl">Your bag is empty</h1>
-          <a href="/shop" className="btn-rose mt-6 inline-flex">Continue shopping</a>
+        <div className="max-w-xl mx-auto px-5 py-24 text-center">
+          <ShoppingBag size={48} className="mx-auto mb-4 text-[color:var(--muted-foreground)] opacity-30" strokeWidth={1.5} />
+          <h1 className="font-display text-3xl mb-2">Your bag is empty</h1>
+          <p className="text-sm text-[color:var(--muted-foreground)] mb-6">Add some pieces before checking out.</p>
+          <Link to="/shop" className="btn-rose">Browse the Collection</Link>
         </div>
       </Shell>
     );
@@ -90,7 +123,9 @@ function Checkout() {
 
   const onDeliverySubmit = (data: DeliveryForm) => {
     setDeliveryData(data);
+    setMpesaPhone(data.phone);
     setStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const placeOrder = async () => {
@@ -101,34 +136,19 @@ function Checkout() {
     try {
       const res = await createOrder({
         data: {
-          items: items.map((i) => ({
-            productId: i.productId,
-            size: i.size,
-            color: i.color,
-            quantity: i.quantity,
-          })),
-          contact: {
-            fullName: deliveryData.fullName,
-            email: deliveryData.email,
-            phone: sanitizePhone(deliveryData.phone),
-          },
+          items: items.map((i) => ({ productId: i.productId, size: i.size, color: i.color, quantity: i.quantity })),
+          contact: { fullName: deliveryData.fullName, email: deliveryData.email, phone: sanitizePhone(deliveryData.phone) },
           isPickup: deliveryData.isPickup,
           pickupBranch: deliveryData.isPickup ? deliveryData.branch : null,
-          delivery: deliveryData.isPickup
-            ? undefined
-            : {
-                street: deliveryData.street,
-                area: zone?.name,
-                instructions: deliveryData.instructions,
-              },
+          delivery: deliveryData.isPickup ? undefined : { street: deliveryData.street, area: zone?.name, instructions: deliveryData.instructions },
           zoneId: deliveryData.isPickup ? null : (deliveryData.zoneId ?? null),
           userId,
         },
       });
-      // Atomic — set all three together before advancing step
       setOrderId(res.id);
       setServerTotal(res.total);
       setStep(3);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       toast.success(`Order ${res.order_number} created`);
     } catch (e: any) {
       toast.error(e.message ?? "Could not place order");
@@ -137,302 +157,373 @@ function Checkout() {
     }
   };
 
+  const startPolling = (reqId: string) => {
+    const start = Date.now();
+    pollRef.current = setInterval(async () => {
+      try {
+        const s = await mpesaStatus({ data: { checkoutId: reqId } });
+        if (s.paymentStatus === "paid") {
+          clearInterval(pollRef.current!); pollRef.current = null;
+          clear(); toast.success("Payment confirmed! 🎉");
+          nav({ to: "/order-confirmation/$id", params: { id: orderId! } });
+        } else if (s.paymentStatus === "failed" || Date.now() - start > 90_000) {
+          clearInterval(pollRef.current!); pollRef.current = null;
+          setPaying(false); setPayFailed(true);
+          toast.error("Payment failed or timed out. Please try again.");
+        }
+      } catch { /* network blip — keep polling */ }
+    }, 5000);
+  };
+
   const payMpesa = async () => {
     if (!orderId || paying) return;
-    setPaying(true);
+    setPaying(true); setPayFailed(false);
     try {
       const res = await mpesaStkPush({
-        data: {
-          orderId,
-          phone: sanitizePhone(deliveryData!.phone),
-          amount: Math.round(serverTotal ?? 0),
-        },
+        data: { orderId, phone: sanitizePhone(mpesaPhone), amount: Math.round(serverTotal ?? 0) },
       });
-
       if (!res.ok) {
         if ("disabled" in res && res.disabled) {
-          toast.warning(
-            "M-Pesa is not configured yet. Order saved as pending — our team will contact you shortly."
-          );
+          toast.warning("M-Pesa not configured yet — order saved as pending. Our team will follow up.");
           clear();
-          setTimeout(() => nav({ to: "/order-confirmation/$id", params: { id: orderId! } }), 1200);
-          return; // paying stays true — we're navigating away anyway
+          setTimeout(() => nav({ to: "/order-confirmation/$id", params: { id: orderId! } }), 1400);
+          return;
         }
         toast.error(res.message ?? "STK push failed");
-        setPaying(false);
-        return;
+        setPaying(false); setPayFailed(true); return;
       }
-
       setCheckoutReqId(res.checkoutRequestId);
-      const start = Date.now();
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const s = await mpesaStatus({ data: { checkoutId: res.checkoutRequestId } });
-          if (s.paymentStatus === "paid") {
-            clearInterval(pollRef.current!);
-            pollRef.current = null;
-            clear();
-            toast.success("Payment confirmed!");
-            nav({ to: "/order-confirmation/$id", params: { id: orderId! } });
-          } else if (s.paymentStatus === "failed" || Date.now() - start > 90_000) {
-            clearInterval(pollRef.current!);
-            pollRef.current = null;
-            setPaying(false);
-            toast.error("Payment timed out or failed. Please try again.");
-          }
-        } catch {
-          // network blip — keep polling
-        }
-      }, 5000);
+      startPolling(res.checkoutRequestId);
     } catch (e: any) {
       toast.error(e.message);
-      setPaying(false);
+      setPaying(false); setPayFailed(true);
     }
   };
 
-  // Derived: what to show for delivery fee line
   const feeDisplay = () => {
-    if (isPickup) return <span className="text-[color:var(--success)] font-semibold">FREE</span>;
-    if (deliveryFee === null) return <span className="text-[color:var(--muted-foreground)]">Select area above</span>;
-    if (zone?.is_free) return <span className="text-[color:var(--success)] font-semibold">FREE</span>;
-    return <span>{formatKsh(deliveryFee)}</span>;
+    if (isPickup || zone?.is_free) return <span className="text-[color:var(--success)] font-semibold">FREE</span>;
+    if (deliveryFee === null) return <span className="text-[color:var(--muted-foreground)] italic">Select area first</span>;
+    return <span className="font-semibold">{formatKsh(deliveryFee)}</span>;
   };
 
-  // For step 2 review — use serverTotal if available (post-order) else client estimate
+  const reviewFee  = serverTotal != null ? (serverTotal - sub) : (deliveryFee ?? 0);
   const reviewTotal = serverTotal ?? sub + (deliveryFee ?? 0);
-  const reviewFee = serverTotal != null ? reviewTotal - sub : deliveryFee ?? 0;
+
+  const branchInfo = BRAND.branches.find((b) => b.id === branch)!;
 
   return (
     <Shell>
-      <div className="max-w-3xl mx-auto px-5 py-12">
-        {/* Step indicator */}
-        <p className="eyebrow mb-2">Checkout · Step {step} of 3</p>
-        <h1 className="font-display text-4xl mb-2">
-          {step === 1 ? "Delivery" : step === 2 ? "Review Order" : "Payment"}
-        </h1>
+      <div className="max-w-2xl mx-auto px-5 py-10">
+        <StepIndicator current={step} />
 
-        {/* Progress bar */}
-        <div className="flex gap-1 mb-8">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                s <= step ? "bg-[color:var(--rose)]" : "bg-[color:var(--border)]"
-              }`}
-            />
-          ))}
-        </div>
+        <AnimatePresence mode="wait">
 
-        {/* ── Step 1: Contact & Delivery ── */}
-        {step === 1 && (
-          <form onSubmit={handleSubmit(onDeliverySubmit)} className="card-luxe p-6 space-y-4">
-            <p className="eyebrow mb-1">Contact details</p>
-            <div className="grid md:grid-cols-2 gap-3">
-              <div>
-                <input className="input-luxe" placeholder="Full name" {...register("fullName")} />
-                {errors.fullName && (
-                  <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.fullName.message}</p>
-                )}
-              </div>
-              <div>
-                <input className="input-luxe" placeholder="Email" type="email" {...register("email")} />
-                {errors.email && (
-                  <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.email.message}</p>
-                )}
-              </div>
-            </div>
-            <div>
-              <input className="input-luxe" placeholder="Phone (07XX or +2547XX)" {...register("phone")} />
-              {errors.phone && (
-                <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.phone.message}</p>
-              )}
-            </div>
+          {/* ── Step 1 ── */}
+          {step === 1 && (
+            <motion.div key="step1" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
+              <form onSubmit={handleSubmit(onDeliverySubmit)} className="space-y-5">
 
-            <p className="eyebrow mb-1 pt-2">Delivery method</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setValue("isPickup", false)}
-                className={`flex-1 py-3 rounded-md border text-sm transition ${
-                  !isPickup
-                    ? "border-[color:var(--rose)] text-[color:var(--rose)] bg-[color:var(--rose)]/5"
-                    : "border-[color:var(--border)] text-[color:var(--muted-foreground)]"
-                }`}
-              >
-                Delivery
-              </button>
-              <button
-                type="button"
-                onClick={() => setValue("isPickup", true)}
-                className={`flex-1 py-3 rounded-md border text-sm transition ${
-                  isPickup
-                    ? "border-[color:var(--rose)] text-[color:var(--rose)] bg-[color:var(--rose)]/5"
-                    : "border-[color:var(--border)] text-[color:var(--muted-foreground)]"
-                }`}
-              >
-                Branch Pickup
-              </button>
-            </div>
-
-            {isPickup ? (
-              <select className="input-luxe" {...register("branch")}>
-                <option value="nairobi">Nairobi Boutique</option>
-                <option value="makueni">Makueni Boutique</option>
-              </select>
-            ) : (
-              <>
-                <div>
-                  <input className="input-luxe" placeholder="Street address" {...register("street")} />
-                  {errors.street && (
-                    <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.street.message}</p>
-                  )}
-                </div>
-                <div>
-                  <select className="input-luxe" {...register("zoneId")}>
-                    <option value="">Select delivery area…</option>
-                    {zones?.map((z: any) => (
-                      <option key={z.id} value={z.id}>
-                        {z.name} {z.is_free ? "· FREE" : `· ${formatKsh(z.fee)}`}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.zoneId && (
-                    <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.zoneId.message}</p>
-                  )}
-                </div>
-                <textarea
-                  className="input-luxe resize-none"
-                  rows={2}
-                  placeholder="Delivery instructions (optional)"
-                  {...register("instructions")}
-                />
-              </>
-            )}
-
-            <div className="flex justify-between items-center pt-4 border-t border-[color:var(--border)]">
-              <span className="text-sm text-[color:var(--muted-foreground)]">
-                Delivery fee: <span className="text-[color:var(--cream)] ml-1">{feeDisplay()}</span>
-              </span>
-              <button type="submit" className="btn-rose">
-                Continue →
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* ── Step 2: Review ── */}
-        {step === 2 && deliveryData && (
-          <div className="card-luxe p-6 space-y-5">
-            {/* Items */}
-            <div>
-              <p className="eyebrow mb-3">Your items</p>
-              <div className="space-y-2">
-                {items.map((i) => (
-                  <div
-                    key={i.productId + i.size + i.color}
-                    className="flex items-center gap-3 text-sm"
-                  >
-                    {i.image && (
-                      <img src={i.image} alt={i.name} className="w-10 h-12 object-cover rounded-md shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate">{i.name}</p>
-                      <p className="text-xs text-[color:var(--muted-foreground)]">
-                        {[i.size, i.color].filter(Boolean).join(" · ")} · qty {i.quantity}
-                      </p>
+                {/* Contact */}
+                <section className="card-luxe p-5 space-y-4">
+                  <p className="eyebrow">Contact details</p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Full name</label>
+                      <input className="input-luxe" placeholder="Jane Wanjiru" {...register("fullName")} />
+                      {errors.fullName && <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.fullName.message}</p>}
                     </div>
-                    <span className="price shrink-0">{formatKsh(i.unitPrice * i.quantity)}</span>
+                    <div>
+                      <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Email</label>
+                      <input className="input-luxe" placeholder="jane@email.com" type="email" {...register("email")} />
+                      {errors.email && <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.email.message}</p>}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div>
+                    <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Phone number</label>
+                    <div className="relative">
+                      <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+                      <input className="input-luxe pl-9" placeholder="0712 345 678 or +254712345678" {...register("phone")} />
+                    </div>
+                    {errors.phone && <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.phone.message}</p>}
+                  </div>
+                </section>
 
-            {/* Cost breakdown */}
-            <div className="border-t border-[color:var(--border)] pt-4 space-y-1.5 text-sm">
-              <div className="flex justify-between text-[color:var(--muted-foreground)]">
-                <span>Subtotal</span>
-                <span className="price">{formatKsh(sub)}</span>
-              </div>
-              <div className="flex justify-between text-[color:var(--muted-foreground)]">
-                <span>Delivery</span>
-                <span className="price">
-                  {reviewFee === 0 ? (
-                    <span className="text-[color:var(--success)]">FREE</span>
+                {/* Delivery method toggle */}
+                <section className="card-luxe p-5 space-y-4">
+                  <p className="eyebrow">Delivery method</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { val: false, label: "Deliver to me", sub: "Home / office delivery" },
+                      { val: true,  label: "Pick up",       sub: "Free branch pickup" },
+                    ].map(({ val, label, sub: sublabel }) => (
+                      <button key={String(val)} type="button"
+                        onClick={() => setValue("isPickup", val)}
+                        className={`p-3 rounded-xl border text-left transition-all duration-200 ${
+                          isPickup === val
+                            ? "border-[color:var(--rose)] bg-[color:var(--rose)]/8"
+                            : "border-[color:var(--border)] hover:border-[color:var(--rose)]/40"
+                        }`}>
+                        <p className={`text-sm font-medium ${isPickup === val ? "text-[color:var(--rose)]" : ""}`}>{label}</p>
+                        <p className="text-xs text-[color:var(--muted-foreground)] mt-0.5">{sublabel}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {isPickup ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-[color:var(--muted-foreground)]">Select branch</p>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {BRAND.branches.map((b) => (
+                          <button key={b.id} type="button"
+                            onClick={() => setValue("branch", b.id)}
+                            className={`p-4 rounded-xl border text-left transition-all duration-200 ${
+                              branch === b.id
+                                ? "border-[color:var(--rose)] bg-[color:var(--rose)]/8"
+                                : "border-[color:var(--border)] hover:border-[color:var(--rose)]/40"
+                            }`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${branch === b.id ? "bg-[color:var(--rose)]" : "bg-[color:var(--muted-foreground)]"}`} />
+                              <p className={`text-sm font-medium ${branch === b.id ? "text-[color:var(--rose)]" : ""}`}>{b.name}</p>
+                            </div>
+                            <p className="flex items-center gap-1 text-xs text-[color:var(--muted-foreground)]">
+                              <MapPin size={11} /> {b.address}
+                            </p>
+                            <p className="flex items-center gap-1 text-xs text-[color:var(--muted-foreground)] mt-0.5">
+                              <Clock size={11} /> {b.hours}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[color:var(--success)] bg-[color:var(--success)]/10 border border-[color:var(--success)]/20 rounded-lg px-3 py-2">
+                        <Check size={12} /> Pickup is always free — no delivery charge
+                      </div>
+                    </div>
                   ) : (
-                    formatKsh(reviewFee)
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Street address</label>
+                        <input className="input-luxe" placeholder="e.g. 14 Ngong Road, Apartment 3B" {...register("street")} />
+                        {errors.street && <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.street.message}</p>}
+                      </div>
+                      <div>
+                        <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Delivery area</label>
+                        <select className="input-luxe" {...register("zoneId")}>
+                          <option value="">Select your area…</option>
+                          {zones?.map((z: any) => (
+                            <option key={z.id} value={z.id}>
+                              {z.name}{z.is_free ? " — FREE" : ` — ${formatKsh(z.fee)}`}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.zoneId && <p className="text-xs text-[color:var(--destructive)] mt-1">{errors.zoneId.message}</p>}
+                      </div>
+
+                      {/* Live fee preview */}
+                      {zoneId && (
+                        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                          className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 border ${
+                            zone?.is_free
+                              ? "text-[color:var(--success)] bg-[color:var(--success)]/10 border-[color:var(--success)]/20"
+                              : "text-[color:var(--cream)] bg-[color:var(--muted)]/40 border-[color:var(--border)]"
+                          }`}>
+                          <MapPin size={11} />
+                          Delivery to {zone?.name}: {feeDisplay()}
+                        </motion.div>
+                      )}
+
+                      <div>
+                        <label className="text-xs text-[color:var(--muted-foreground)] mb-1 block">Special instructions <span className="opacity-50">(optional)</span></label>
+                        <textarea className="input-luxe resize-none" rows={2}
+                          placeholder="Gate code, landmark, preferred drop-off point…"
+                          {...register("instructions")} />
+                      </div>
+                    </div>
                   )}
-                </span>
+                </section>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-[color:var(--muted-foreground)]">
+                    Delivery fee: <span className="text-[color:var(--cream)]">{feeDisplay()}</span>
+                  </span>
+                  <button type="submit" className="btn-rose">
+                    Review Order <ChevronRight size={15} />
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
+          {/* ── Step 2 ── */}
+          {step === 2 && deliveryData && (
+            <motion.div key="step2" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
+              <div className="space-y-4">
+
+                {/* Items */}
+                <section className="card-luxe p-5">
+                  <p className="eyebrow mb-4">Your items ({items.length})</p>
+                  <div className="space-y-3">
+                    {items.map((item) => (
+                      <div key={item.productId + item.size + item.color} className="flex items-center gap-3">
+                        <div className="w-12 h-14 rounded-lg overflow-hidden bg-[color:var(--muted)] shrink-0 border border-[color:var(--border)]">
+                          {item.image
+                            ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center"><ShoppingBag size={14} className="opacity-30" /></div>
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-[color:var(--muted-foreground)]">
+                            {[item.size, item.color].filter(Boolean).join(" · ")}
+                            {" · "}qty {item.quantity}
+                          </p>
+                        </div>
+                        <span className="price text-sm text-[color:var(--rose)] shrink-0">{formatKsh(item.unitPrice * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Delivery summary */}
+                <section className="card-luxe p-5">
+                  <p className="eyebrow mb-3">Delivery details</p>
+                  <div className="text-sm space-y-1">
+                    <p className="font-medium">{deliveryData.fullName}</p>
+                    <p className="text-[color:var(--muted-foreground)] text-xs">{deliveryData.email} · {deliveryData.phone}</p>
+                    {deliveryData.isPickup ? (
+                      <div className="flex items-start gap-2 mt-2 text-xs text-[color:var(--muted-foreground)]">
+                        <MapPin size={12} className="mt-0.5 shrink-0 text-[color:var(--rose)]" />
+                        <span>Pickup at {branchInfo?.name} · {branchInfo?.address}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2 mt-2 text-xs text-[color:var(--muted-foreground)]">
+                        <MapPin size={12} className="mt-0.5 shrink-0 text-[color:var(--rose)]" />
+                        <span>{deliveryData.street}{zone?.name ? `, ${zone.name}` : ""}</span>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Cost breakdown */}
+                <section className="card-luxe p-5">
+                  <p className="eyebrow mb-4">Cost breakdown</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-[color:var(--muted-foreground)]">
+                      <span>Subtotal</span><span className="price">{formatKsh(sub)}</span>
+                    </div>
+                    <div className="flex justify-between text-[color:var(--muted-foreground)]">
+                      <span>Delivery</span>
+                      <span className="price">
+                        {reviewFee === 0 ? <span className="text-[color:var(--success)]">FREE</span> : formatKsh(reviewFee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base pt-2 border-t border-[color:var(--border)] mt-2">
+                      <span className="font-display">Total</span>
+                      <span className="price text-[color:var(--rose)]">{formatKsh(reviewTotal)}</span>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="flex justify-between">
+                  <button onClick={() => setStep(1)} className="btn-ghost">← Back</button>
+                  <button onClick={placeOrder} disabled={placing} className="btn-rose">
+                    {placing ? "Placing order…" : <>Proceed to Payment <ChevronRight size={15} /></>}
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between text-base font-semibold pt-2 border-t border-[color:var(--border)]">
-                <span className="font-display">Total</span>
-                <span className="price text-[color:var(--rose)]">{formatKsh(reviewTotal)}</span>
+            </motion.div>
+          )}
+
+          {/* ── Step 3 ── */}
+          {step === 3 && (
+            <motion.div key="step3" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
+              <div className="card-luxe overflow-hidden">
+                {/* M-Pesa branded header */}
+                <div className="bg-[#4CAF50]/10 border-b border-[#4CAF50]/20 px-6 py-5 text-center">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    {/* M-Pesa logo mark */}
+                    <div className={`w-10 h-10 rounded-full bg-[#4CAF50] flex items-center justify-center shrink-0 ${paying && checkoutReqId ? "animate-pulse" : ""}`}>
+                      <span className="text-white font-bold text-xs leading-none">M</span>
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-[#4CAF50] text-lg leading-none tracking-wide">M-PESA</p>
+                      <p className="text-xs text-[color:var(--muted-foreground)]">Safaricom · Secure payment</p>
+                    </div>
+                  </div>
+                  <p className="font-display text-3xl text-[color:var(--cream)] mt-3">
+                    {formatKsh(serverTotal ?? 0)}
+                  </p>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* Editable M-Pesa phone */}
+                  <div>
+                    <label className="text-xs text-[color:var(--muted-foreground)] mb-1.5 block">
+                      M-Pesa phone number
+                    </label>
+                    <div className="relative">
+                      <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+                      <input
+                        className="input-luxe pl-9"
+                        value={mpesaPhone}
+                        onChange={(e) => setMpesaPhone(e.target.value)}
+                        placeholder="0712 345 678"
+                        disabled={paying}
+                      />
+                    </div>
+                    <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
+                      The STK push prompt will appear on this phone
+                    </p>
+                  </div>
+
+                  {/* Pay / Retry button */}
+                  <button
+                    onClick={payMpesa}
+                    disabled={paying && !payFailed}
+                    className="w-full py-4 rounded-xl font-bold text-white text-sm tracking-wide transition-all duration-200 flex items-center justify-center gap-3"
+                    style={{ background: paying && checkoutReqId ? "#2e7d32" : "#4CAF50" }}
+                  >
+                    {paying && checkoutReqId ? (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                        Check your Safaricom phone…
+                      </>
+                    ) : payFailed ? (
+                      "Retry Payment"
+                    ) : (
+                      `Pay ${formatKsh(serverTotal ?? 0)} via M-Pesa`
+                    )}
+                  </button>
+
+                  {/* Status messages */}
+                  <AnimatePresence>
+                    {paying && checkoutReqId && (
+                      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="flex flex-col items-center gap-2 text-center">
+                        <p className="text-sm text-[color:var(--muted-foreground)]">
+                          Enter your <span className="text-[color:var(--cream)] font-medium">M-Pesa PIN</span> on your phone when prompted.
+                        </p>
+                        <p className="text-xs text-[color:var(--muted-foreground)] animate-pulse">
+                          Waiting for confirmation · checking every 5s · times out after 90s
+                        </p>
+                      </motion.div>
+                    )}
+                    {payFailed && (
+                      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="text-xs text-center text-[color:var(--destructive)] bg-[color:var(--destructive)]/10 border border-[color:var(--destructive)]/20 rounded-lg px-4 py-2">
+                        Payment failed or timed out. Check your phone and tap Retry.
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <p className="text-xs text-center text-[color:var(--muted-foreground)]">
+                    Do not close this page while payment is processing.
+                  </p>
+                </div>
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            {/* Delivery details */}
-            <div className="border-t border-[color:var(--border)] pt-4 text-xs text-[color:var(--muted-foreground)] space-y-1">
-              <p className="eyebrow mb-2">Delivery details</p>
-              <p>{deliveryData.fullName} · {deliveryData.email} · {deliveryData.phone}</p>
-              {deliveryData.isPickup ? (
-                <p>Pickup: {deliveryData.branch.charAt(0).toUpperCase() + deliveryData.branch.slice(1)} branch</p>
-              ) : (
-                <p>Deliver to: {deliveryData.street}{zone?.name ? `, ${zone.name}` : ""}</p>
-              )}
-            </div>
-
-            <div className="flex justify-between pt-2">
-              <button onClick={() => setStep(1)} className="btn-ghost">← Back</button>
-              <button onClick={placeOrder} disabled={placing} className="btn-rose">
-                {placing ? "Placing order…" : "Continue to Payment →"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3: M-Pesa ── */}
-        {step === 3 && (
-          <div className="card-luxe p-6 space-y-5">
-            <div className="text-center py-2">
-              <p className="eyebrow mb-2">Pay with</p>
-              <p className="font-display text-4xl text-[color:var(--mpesa)]">M-PESA</p>
-              <p className="text-sm text-[color:var(--muted-foreground)] mt-1">
-                Amount: <span className="price text-[color:var(--rose)] font-semibold">{formatKsh(serverTotal ?? 0)}</span>
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-[color:var(--muted-foreground)] mb-1.5">M-Pesa phone number</p>
-              <input
-                className="input-luxe"
-                value={deliveryData?.phone ?? ""}
-                readOnly
-              />
-              <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
-                STK push will be sent to this number
-              </p>
-            </div>
-
-            <button onClick={payMpesa} disabled={paying} className="btn-mpesa">
-              {paying
-                ? checkoutReqId
-                  ? "Awaiting confirmation… check your phone"
-                  : "Initiating payment…"
-                : `Pay ${formatKsh(serverTotal ?? 0)} via M-Pesa`}
-            </button>
-
-            {checkoutReqId && (
-              <div className="flex items-center justify-center gap-2 text-xs text-[color:var(--muted-foreground)]">
-                <span className="w-2 h-2 rounded-full bg-[color:var(--mpesa)] animate-pulse" />
-                Polling for Safaricom confirmation every 5s…
-              </div>
-            )}
-
-            <p className="text-xs text-center text-[color:var(--muted-foreground)]">
-              Enter your M-Pesa PIN on your phone when prompted. Do not close this page.
-            </p>
-          </div>
-        )}
+        </AnimatePresence>
       </div>
     </Shell>
   );
