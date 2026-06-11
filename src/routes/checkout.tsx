@@ -44,6 +44,7 @@ function Checkout() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<DeliveryForm>({
     resolver: zodResolver(deliverySchema),
@@ -55,7 +56,6 @@ function Checkout() {
   const zone = zones?.find((z: any) => z.id === zoneId);
   const deliveryFee = isPickup ? 0 : Number(zone?.fee ?? 0);
   const total = sub + deliveryFee;
-  const phone = watch("phone");
 
   if (items.length === 0 && !orderId) {
     return (
@@ -80,18 +80,20 @@ function Checkout() {
     try {
       const res = await createOrder({
         data: {
-          items: items.map((i) => ({ productId: i.productId, name: i.name, image: i.image, size: i.size, color: i.color, quantity: i.quantity, unitPrice: i.unitPrice })),
+          // Only IDs + quantities sent — prices resolved server-side from DB
+          items: items.map((i) => ({ productId: i.productId, size: i.size, color: i.color, quantity: i.quantity })),
           contact: { fullName: deliveryData.fullName, email: deliveryData.email, phone: sanitizePhone(deliveryData.phone) },
           isPickup: deliveryData.isPickup,
           pickupBranch: deliveryData.isPickup ? deliveryData.branch : null,
           delivery: deliveryData.isPickup ? undefined : { street: deliveryData.street, area: zone?.name, instructions: deliveryData.instructions },
-          deliveryFee,
+          zoneId: deliveryData.isPickup ? null : (deliveryData.zoneId ?? null),
           userId,
         },
       });
       setOrderId(res.id);
+      setServerTotal(res.total);
       setStep(3);
-      toast.success(`Order ${res.orderNumber} created`);
+      toast.success(`Order ${res.order_number} created`);
     } catch (e: any) { toast.error(e.message ?? "Could not place order"); }
   };
 
@@ -99,7 +101,7 @@ function Checkout() {
     if (!orderId) return;
     setPaying(true);
     try {
-      const res = await mpesaStkPush({ data: { orderId, phone: sanitizePhone(deliveryData!.phone), amount: Math.round(total) } });
+      const res = await mpesaStkPush({ data: { orderId, phone: sanitizePhone(deliveryData!.phone), amount: Math.round(serverTotal ?? 0) } });
       if (!res.ok) {
         if ("disabled" in res && res.disabled) {
           toast.warning("M-Pesa is not configured yet. Order saved as pending — staff will contact you.");
@@ -233,7 +235,7 @@ function Checkout() {
             </div>
             <input className="input-luxe" value={deliveryData?.phone ?? ""} readOnly placeholder="M-Pesa phone number" />
             <button onClick={payMpesa} disabled={paying} className="btn-mpesa">
-              {paying ? "Check your phone for the STK prompt…" : `Pay ${formatKsh(total)} via M-Pesa`}
+              {paying ? "Check your phone for the STK prompt…" : `Pay ${formatKsh(serverTotal ?? 0)} via M-Pesa`}
             </button>
             {checkoutId && <p className="text-xs text-center text-[color:var(--muted-foreground)] animate-pulse">Awaiting confirmation from Safaricom…</p>}
           </div>

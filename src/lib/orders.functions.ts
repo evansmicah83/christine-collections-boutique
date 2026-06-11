@@ -2,18 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const ItemSchema = z.object({
+const SecureItemSchema = z.object({
   productId: z.string().uuid(),
-  name: z.string(),
-  image: z.string().optional().nullable(),
   size: z.string().nullable(),
   color: z.string().nullable(),
   quantity: z.number().int().min(1).max(50),
-  unitPrice: z.number().min(0),
 });
 
 const CreateOrderSchema = z.object({
-  items: z.array(ItemSchema).min(1).max(50),
+  items: z.array(SecureItemSchema).min(1).max(50),
   contact: z.object({
     fullName: z.string().min(1).max(120),
     email: z.string().email().max(160),
@@ -28,7 +25,7 @@ const CreateOrderSchema = z.object({
       instructions: z.string().max(500).optional(),
     })
     .optional(),
-  deliveryFee: z.number().min(0).max(5000),
+  zoneId: z.string().uuid().nullable().optional(), // resolved to fee server-side
   userId: z.string().uuid().nullable().optional(),
 });
 
@@ -36,40 +33,30 @@ export const createOrder = createServerFn({ method: "POST" })
   .validator(CreateOrderSchema)
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const subtotal = data.items.reduce((a, i) => a + i.unitPrice * i.quantity, 0);
-    const total = subtotal + data.deliveryFee;
 
-    const { data: order, error } = await supabaseAdmin
-      .from("orders")
-      .insert({
-        user_id: data.userId ?? null,
-        guest_email: data.userId ? null : data.contact.email,
-        guest_phone: data.userId ? null : data.contact.phone,
-        subtotal,
-        delivery_fee: data.deliveryFee,
-        total,
-        is_pickup: data.isPickup,
-        pickup_branch: data.isPickup ? data.pickupBranch : null,
-        delivery_address: data.isPickup ? null : { ...data.delivery, fullName: data.contact.fullName, phone: data.contact.phone },
-        mpesa_phone: data.contact.phone,
-      })
-      .select()
-      .single();
+    // All price resolution, stock checks, and total calculation happen inside
+    // the Postgres function — nothing is trusted from the client.
+    const { data: result, error } = await supabaseAdmin.rpc("place_order_secure", {
+      p_items: data.items.map((i) => ({
+        product_id: i.productId,
+        quantity: i.quantity,
+        size: i.size,
+        color: i.color,
+      })),
+      p_contact: {
+        fullName: data.contact.fullName,
+        email: data.contact.email,
+        phone: data.contact.phone,
+      },
+      p_is_pickup: data.isPickup,
+      p_pickup_branch: data.isPickup ? (data.pickupBranch ?? null) : null,
+      p_delivery: data.isPickup ? null : (data.delivery ?? null),
+      p_zone_id: data.isPickup ? null : (data.zoneId ?? null),
+      p_user_id: data.userId ?? null,
+    });
+
     if (error) throw new Error(error.message);
-
-    const items = data.items.map((i) => ({
-      order_id: order.id,
-      product_id: i.productId,
-      product_name: i.name,
-      product_image: i.image ?? null,
-      quantity: i.quantity,
-      size: i.size,
-      color: i.color,
-      unit_price: i.unitPrice,
-    }));
-    const { error: e2 } = await supabaseAdmin.from("order_items").insert(items);
-    if (e2) throw new Error(e2.message);
-    return { id: order.id, orderNumber: order.order_number, total };
+    return result as { id: string; order_number: string; subtotal: number; delivery_fee: number; total: number };
   });
 
 export const getOrderById = createServerFn({ method: "GET" })

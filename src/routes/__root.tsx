@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext, useRouter, HeadContent, Scripts } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportError } from "../lib/error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -17,7 +17,7 @@ function NotFoundComponent() {
 }
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
-  useEffect(() => { reportLovableError(error, { boundary: "root" }); }, [error]);
+  useEffect(() => { reportError(error, { boundary: "root" }); }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
@@ -41,8 +41,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "Christine Collections — Dress Your Story" },
       { name: "twitter:description", content: "Premium Kenyan boutique. Free delivery across Nairobi. Branches in Nairobi & Makueni." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/81c740d3-1f28-4716-8044-3b8094338917/id-preview-882e4e82--f6e4399d-620d-4afd-a49e-be957dec7ddd.lovable.app-1780938530997.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/81c740d3-1f28-4716-8044-3b8094338917/id-preview-882e4e82--f6e4399d-620d-4afd-a49e-be957dec7ddd.lovable.app-1780938530997.png" },
+      { property: "og:image", content: "/og-image.jpg" },
+      { name: "twitter:image", content: "/og-image.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
