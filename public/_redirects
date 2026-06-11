@@ -1,0 +1,4 @@
+# Christine Collections — Netlify redirects
+# All routes are handled by the TanStack Start SSR server function.
+# Unmatched routes render the custom 404 via notFoundComponent in __root.tsx.
+/* /.netlify/functions/server 200
