@@ -163,10 +163,9 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
-  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
-  &:hover {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  &:not(form):not(:has(input)):not(:has(textarea)):hover {
     border-color: color-mix(in oklab, var(--rose) 60%, transparent);
-    transform: translateY(-4px);
     box-shadow: var(--shadow-glow);
   }
 }
@@ -194,16 +193,30 @@
 }
 
 @utility input-luxe {
-  background: var(--input);
-  border: 1px solid var(--border);
-  color: var(--cream);
+  background: #1A0F1B;
+  border: 1px solid rgba(192, 134, 106, 0.4);
+  color: #F5EEE8;
   border-radius: 10px;
   padding: 0.75rem 1rem;
   width: 100%;
   font-family: var(--font-body);
-  transition: border-color 0.2s;
-  &:focus { outline: none; border-color: var(--rose); }
-  &::placeholder { color: color-mix(in oklab, var(--cream) 45%, transparent); }
+  font-size: 0.9375rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  &:focus {
+    outline: none;
+    border-color: #C0866A;
+    box-shadow: 0 0 0 3px rgba(192, 134, 106, 0.15);
+  }
+  &::placeholder { color: rgba(245, 238, 232, 0.4); }
+  /* Suppress browser autofill background override */
+  &:-webkit-autofill,
+  &:-webkit-autofill:hover,
+  &:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #1A0F1B inset !important;
+    -webkit-text-fill-color: #F5EEE8 !important;
+    border-color: rgba(192, 134, 106, 0.4);
+    caret-color: #F5EEE8;
+  }
 }
 
 @utility shimmer {
