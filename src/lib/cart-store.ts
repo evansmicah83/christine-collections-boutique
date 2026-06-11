@@ -59,6 +59,6 @@ export const useCart = create<CartState>()(
       subtotal: () => get().items.reduce((a, i) => a + i.unitPrice * i.quantity, 0),
       count: () => get().items.reduce((a, i) => a + i.quantity, 0),
     }),
-    { name: "cc-cart" }
+    { name: "cc-cart", partialize: (s) => ({ items: s.items }) }
   )
 );

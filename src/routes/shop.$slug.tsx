@@ -181,7 +181,15 @@ function Detail() {
               </div>
               <AnimatePresence mode="wait">
                 <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-                  {tab === "Description" && <p className="text-[color:var(--muted-foreground)] text-sm leading-relaxed">{p.description ?? "Premium quality, ethically crafted in Kenya."}</p>}
+                  {tab === "Description" && (
+                    p.description?.trim()
+                      ? <div className="text-[color:var(--muted-foreground)] text-sm leading-relaxed space-y-3">
+                          {p.description.trim().split(/\n+/).map((para: string, i: number) => (
+                            <p key={i}>{para}</p>
+                          ))}
+                        </div>
+                      : <p className="text-[color:var(--muted-foreground)] text-sm leading-relaxed italic">Premium quality, ethically crafted in Kenya.</p>
+                  )}
                   {tab === "Size Guide" && (
                     <div className="text-sm text-[color:var(--muted-foreground)] space-y-1">
                       <p className="font-medium text-[color:var(--cream)] mb-2">Standard Kenyan sizing</p>

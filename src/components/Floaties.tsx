@@ -6,7 +6,7 @@ import { useCart } from "@/lib/cart-store";
 export function WhatsAppButton() {
   return (
     <a
-      href={whatsappLink("Hi Christine Collections, I'd like to ask about ")}
+      href={whatsappLink()}
       target="_blank"
       rel="noreferrer"
       aria-label="Chat on WhatsApp"

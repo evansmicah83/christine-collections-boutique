@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,8 +21,14 @@ export const Route = createFileRoute("/shop")({
   loader: async ({ context }) => {
     await Promise.all([context.queryClient.ensureQueryData(prodOpts), context.queryClient.ensureQueryData(catOpts)]);
   },
-  component: Shop,
+  component: ShopRoot,
 });
+
+function ShopRoot() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <Shop />;
+}
 
 const PAGE_SIZE = 12;
 

@@ -1,7 +1,9 @@
+import { WHATSAPP_NUMBER, WHATSAPP_DEFAULT_MESSAGE } from "@/config/contact";
+
 export const BRAND = {
   name: "Christine Collections",
   tagline: "Dress Your Story",
-  whatsapp: "+254700000000",
+  whatsapp: WHATSAPP_NUMBER,
   branches: [
     { id: "nairobi" as const, name: "Nairobi Boutique", address: "Westlands, Nairobi", hours: "Mon–Sat • 10am–7pm" },
     { id: "makueni" as const, name: "Makueni Boutique", address: "Wote Town, Makueni", hours: "Mon–Sat • 9am–6pm" },
@@ -27,5 +29,5 @@ export const isValidKenyaPhone = (raw: string): boolean => {
   return /^254[71]\d{8}$/.test(s);
 };
 
-export const whatsappLink = (text = "") =>
+export const whatsappLink = (text = WHATSAPP_DEFAULT_MESSAGE) =>
   `https://wa.me/${BRAND.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;

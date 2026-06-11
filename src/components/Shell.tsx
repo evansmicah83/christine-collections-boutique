@@ -11,7 +11,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />
-      <main className="flex-1 pb-16 md:pb-0">{children}</main>
+      <main className="flex-1 pb-20 md:pb-0">{children}</main>
       <Footer />
       <CartDrawer />
       <WhatsAppButton />
