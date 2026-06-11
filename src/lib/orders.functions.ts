@@ -83,3 +83,24 @@ export const getMyOrders = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return data ?? [];
   });
+
+export const cancelMyOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ context, data }) => {
+    // Verify the order belongs to this user and is still pending
+    const { data: order, error: fetchErr } = await context.supabase
+      .from("orders")
+      .select("id, status, user_id")
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (fetchErr || !order) throw new Error("Order not found");
+    if (order.status !== "pending") throw new Error("Only pending orders can be cancelled");
+    const { error } = await context.supabase
+      .from("orders")
+      .update({ status: "cancelled" })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
