@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Deep plum background -->
+  <rect width="64" height="64" rx="14" fill="#1A0F1B"/>
+  <!-- Rose gold C lettermark -->
+  <text
+    x="32"
+    y="46"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="42"
+    font-weight="700"
+    text-anchor="middle"
+    fill="#C0866A"
+    letter-spacing="-1"
+  >C</text>
+  <!-- Blush accent dot -->
+  <circle cx="47" cy="18" r="5" fill="#F2D4C8" opacity="0.85"/>
+</svg>
