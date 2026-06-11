@@ -21,9 +21,6 @@ export function Nav() {
             {isAdmin && (
               <Link to="/admin" className="text-[color:var(--rose)] font-medium hover:underline transition">Admin</Link>
             )}
-            {!isLoggedIn && (
-              <a href="/admin-login" className="text-xs text-[color:var(--muted-foreground)] hover:text-[color:var(--rose)] transition">Staff login</a>
-            )}
           </nav>
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
