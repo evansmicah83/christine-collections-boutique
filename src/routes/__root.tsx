@@ -4,12 +4,6 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Link, Outlet, createRootRouteWithContext, useRouter, HeadContent, Scripts } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
-import appCss from "../styles.css?url";
-import { reportError } from "../lib/error-reporting";
-
 function NotFoundComponent() {
   return (
     <div className="min-h-screen bg-[#1A0F1B] flex flex-col" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
